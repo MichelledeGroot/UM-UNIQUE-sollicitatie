@@ -1,0 +1,104 @@
+---
+title: "UM PhD vacancy | UNIQUE project"
+author: "Michelle de Groot"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: "hide"
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 100% !important;
+  margin: 35px;
+}
+
+.tables-container {
+  display: flex;
+}
+.half-width {
+  flex: 1;
+  width: 49%;
+  margin-right: 10px; /* Optional: Add some spacing between the tables */
+}
+</style>
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+list.of.packages <- c("tidyverse", "ggplot2", "readr", "knitr", "kableExtra")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+#BiocManager::install("minfi")
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(knitr)
+library(kableExtra)
+library(minfi)
+
+#colors
+my_palette <- c("#1B9E77", "#D95F02", "#7570B3", "#66A61E")
+
+```
+
+
+Step 1: 
+Go to Gene Expression Omnibus (GEO) and download the data with GEO ID: GSE109474 (GSE109474_methReads.csv.gz, GSE109474_predictedMeth.csv.gz and GSE109474_totalReads.csv.gz). These three files contain either the total number of reads, reads corresponding to the methylated epiallele or the predicted methylation ratio. 
+
+```{r}
+#data folder
+file_path <- "data/"
+
+#download GSE109474_methReads.csv.gz
+file_name <- "GSE109474_methReads.csv.gz"
+if (!file.exists(paste0(file_path, file_name))){
+  url <- "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE109474&format=file&file=GSE109474%5FmethReads%2Ecsv%2Egz"
+  download.file(url, paste(file_path, file_name, sep = ""), mode = "wb")
+}
+
+#download GSE109474_predictedMeth.csv.gz
+file_name <- "GSE109474_predictedMeth.csv.gz"
+if (!file.exists(paste0(file_path, file_name))){
+  url <- "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE109474&format=file&file=GSE109474%5FpredictedMeth%2Ecsv%2Egz"
+  download.file(url, paste(file_path, file_name, sep = ""), mode = "wb")
+}
+
+#download GSE109474_totalReads.csv.gz
+file_name <- "GSE109474_totalReads.csv.gz"
+if (!file.exists(paste0(file_path, file_name))){
+  url <- "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE109474&format=file&file=GSE109474%5FtotalReads%2Ecsv%2Egz"
+  download.file(url, paste(file_path, file_name, sep = ""), mode = "wb")
+}
+
+#Read methylation files
+meth_reads <- read_csv("data/GSE109474_methReads.csv.gz")
+predicted_meth <- read_csv("data/GSE109474_predictedMeth.csv.gz")
+total_reads <- read_csv("data/GSE109474_totalReads.csv.gz")
+```
+
+<br>
+
+
+<b>
+Q1) What is the experimental design of the study (number of samples per condition, replicates, controls)? What is the difference between RRBS and WGBS? Which restriction enzymes did they use in this assay and what are their target sequences?
+</b>
+
+
+Study setup is n=6 for sRNA and n=12 for RRBS. There are three timepoints where semen was sampled. T1 = Untrained (Starting point), T2 = Trained (5 days after 6 weeks of training), and T3 = Detrained (3 months after training). This study has no control group. However, they cite another study that did not measure significant differences in methylation levels in a 3-month interval for a non-exercising group.
+RRBS focusses on a subset of the genome (CpG islands), while WGBS covers the entire genome. They used MspI restriction enzymes, which targets 5'-CCGG-3'. 
+
+<br>
+
+<b>
+Q2) Why does the predictedMeth file have a size of 146.0 Mb, while the methReads and totalReads files have a size of only 18.5 and 20.1 Mb?
+</b>
+<br>
+Predicted contains much more bytes because the estimaded reads are floats with many decimals. Of course, in the measured reads there are only integers. 
+
+```{r}
+
+```
+
