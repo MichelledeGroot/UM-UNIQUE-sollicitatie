@@ -9,8 +9,8 @@ output:
 
 <style type="text/css">
 .main-container {
-  max-width: 100% !important;
-  margin: 35px;
+  max-width: 60% !important;
+  margin: 35px auto;
 }
 
 .tables-container {
@@ -27,12 +27,13 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
-list.of.packages <- c("tidyverse", "ggplot2", "readr", "knitr", "kableExtra")
+list.of.packages <- c("tidyverse", "ggplot2", "readr", "knitr", "kableExtra", "magrittr")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
 #BiocManager::install("minfi")
 library(tidyverse)
+library(magrittr)
 library(ggplot2)
 library(readr)
 library(knitr)
@@ -44,6 +45,7 @@ my_palette <- c("#1B9E77", "#D95F02", "#7570B3", "#66A61E")
 
 ```
 
+<br>
 
 Step 1: 
 Go to Gene Expression Omnibus (GEO) and download the data with GEO ID: GSE109474 (GSE109474_methReads.csv.gz, GSE109474_predictedMeth.csv.gz and GSE109474_totalReads.csv.gz). These three files contain either the total number of reads, reads corresponding to the methylated epiallele or the predicted methylation ratio. 
@@ -74,9 +76,9 @@ if (!file.exists(paste0(file_path, file_name))){
 }
 
 #Read methylation files
-meth_reads <- read_csv("data/GSE109474_methReads.csv.gz")
-predicted_meth <- read_csv("data/GSE109474_predictedMeth.csv.gz")
-total_reads <- read_csv("data/GSE109474_totalReads.csv.gz")
+meth_reads <- data.table::fread("data/GSE109474_methReads.csv.gz")
+predicted_meth <- data.table::fread("data/GSE109474_predictedMeth.csv.gz")
+total_reads <- data.table::fread("data/GSE109474_totalReads.csv.gz")
 ```
 
 <br>
@@ -87,7 +89,7 @@ Q1) What is the experimental design of the study (number of samples per conditio
 </b>
 
 
-Study setup is n=6 for sRNA and n=12 for RRBS. There are three timepoints where semen was sampled. T1 = Untrained (Starting point), T2 = Trained (5 days after 6 weeks of training), and T3 = Detrained (3 months after training). This study has no control group. However, they cite another study that did not measure significant differences in methylation levels in a 3-month interval for a non-exercising group.
+<i>Anwer</i>: Study setup is n=6 for sRNA and n=12 for RRBS. There are three timepoints where semen was sampled. T1 = Untrained (Starting point), T2 = Trained (5 days after 6 weeks of training), and T3 = Detrained (3 months after training). This study has no control group. However, they cite another study that did not measure significant differences in methylation levels in a 3-month interval for a non-exercising group.
 RRBS focusses on a subset of the genome (CpG islands), while WGBS covers the entire genome. They used MspI restriction enzymes, which targets 5'-CCGG-3'. 
 
 <br>
@@ -96,9 +98,85 @@ RRBS focusses on a subset of the genome (CpG islands), while WGBS covers the ent
 Q2) Why does the predictedMeth file have a size of 146.0 Mb, while the methReads and totalReads files have a size of only 18.5 and 20.1 Mb?
 </b>
 <br>
-Predicted contains much more bytes because the estimaded reads are floats with many decimals. Of course, in the measured reads there are only integers. 
+<i>Answer</i>: Predicted contains much more bytes because the estimaded reads are floats with many decimals. Of course, in the measured reads there are only integers. 
 
 ```{r}
+#Create a identifier vector combining chromosome start and end position with the following format: “chri:start-end”
+meth_reads_matrix <-
+  meth_reads %>% mutate(
+  id = paste0(seqnames,":",start,"-",end)) %>%
+  column_to_rownames("id") %>%
+  select(-c(seqnames,cluster.id, start, end)) %>%
+  as.matrix() # character instead of num?
+  
+total_reads_matrix <-
+  total_reads %>% mutate(
+  id = paste0(seqnames,":",start,"-",end)) %>%
+  column_to_rownames("id") %>%
+  select(-c(seqnames,cluster.id, start, end)) %>%
+  as.matrix() # character instead of num?
 
+```
+
+
+Compute the DNA methylation ratio.
+```{r}
+meth_ratio = round((meth_reads_matrix / total_reads_matrix), 3)
+
+#check
+head(meth_ratio)  %>%
+  kbl(caption = "Methylation ratio's") %>%
+  kable_material(c("striped", "hover")) %>%
+    kable_styling(full_width = F) %>% 
+    scroll_box(width = "100%")
+```
+
+<br>
+
+<b>
+Q3) Count the number of missing values (NAs) in the obtained methylation ratio matrix. How were the NAs originated in the methylation ratio? Clue: count the number of NAs in methReads and totalReads.  
+</b> <br>
+<i>Result</i>:
+
+```{r}
+na_values <- data.frame(
+  na = c(sum(is.na(meth_ratio)), 
+         sum(is.na(total_reads_matrix)), 
+         sum(is.na(meth_reads_matrix))),
+  zero = c(sum(colSums(meth_ratio == 0)), 
+           sum(colSums(total_reads_matrix == 0)), 
+           sum(colSums(meth_reads_matrix == 0))),
+  row.names = c("Methylation ratio matrix", "Total reads matrix", "Methylation reads matrix")
+)
+
+na_values %>%
+  kbl(caption = "Methylation ratio's") %>%
+  kable_material(c("striped", "hover")) %>%
+  kable_styling(full_width = F) 
+```
+
+<br>
+<i>Answer</i>:
+the methylation ratio matrix has 9367080 N/A values. As you can see, these don't (directly) originate from either the methylation reads or total reads. Looking at zero values does give us an explanation. As the ratio is calculated by dividing methylated reads by total reads, the ratio will be N/A when you try to divide by 0. The missing values are the same as the zero values in the total reads matrix. For the methylation reads matrix, this is not an issue, as you can divide 0 by any number. 
+
+<br>
+<b>
+Q4) Visualize the methylation density distribution for each sample in a single plot. You may  employ the convenient densityPlot function from the minfi R-package. Attach the resulting figure and comment about it.
+</b>
+<br>
+<i>Answer</i>: The density plot shows the distribution of the methylation beta values for each sample (in this case). These values are, as expected, centered around 0 and 1, where 0 indicates unmethylated sites and 1 indicates methylates sites. This is an important step in the QC as a distribution that deviates from this distribution may be caused by poor quality of the data or other errors. There appears to be one same with a different beta value distribution. We should investigate whether this is because of biological or technical variation. 
+
+```{r}
+densityPlot(meth_ratio, main = "Density methylation Beta values")
+```
+
+<br>
+<b>
+Q5) Perform a multi-dimensional scaling (MDS) plot on the top 1000 most variable positions. You may employ the mdsPlot function from the minfi R-package. Employ the rainbow palette to colour each individual differently, use the filled circle point shape and display the legend in three columns. Describe briefly the basis of an MDS plot, attach and interpret the obtained visualization. 
+</b>
+
+
+```{r}
+mdsPlot(meth_ratio)
 ```
 
