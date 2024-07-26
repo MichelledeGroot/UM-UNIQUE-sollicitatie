@@ -27,7 +27,7 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
-list.of.packages <- c("tidyverse", "ggplot2", "readr", "knitr", "kableExtra", "magrittr")
+list.of.packages <- c("tidyverse", "ggplot2", "readr", "knitr", "kableExtra", "magrittr","stats","gplots")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
@@ -39,12 +39,21 @@ library(readr)
 library(knitr)
 library(kableExtra)
 library(minfi)
+library(stats)
+library(gplots)
 
 #colors
 my_palette <- c("#1B9E77", "#D95F02", "#7570B3", "#66A61E")
 
 ```
 
+<br>
+
+### Interview Assignment
+
+In this test, we will be working with DNA methylation data obtained via Reduced Representation Bisulfite Sequencing (RRBS) from semen samples of males undergoing endurance training. <br>
+Please follow the instructions and provide your answers to the questions below. Indications are included if you are using R, but feel free to use any other programming language to complete the test as you see fit.
+<br>
 <br>
 
 Step 1: 
@@ -98,7 +107,7 @@ RRBS focusses on a subset of the genome (CpG islands), while WGBS covers the ent
 Q2) Why does the predictedMeth file have a size of 146.0 Mb, while the methReads and totalReads files have a size of only 18.5 and 20.1 Mb?
 </b>
 <br>
-<i>Answer</i>: Predicted contains much more bytes because the estimaded reads are floats with many decimals. Of course, in the measured reads there are only integers. 
+<i>Answer</i>: Predicted contains much more bytes because the estimated reads are floats with many decimals. Of course, in the measured reads there are only integers. 
 
 ```{r}
 #Create a identifier vector combining chromosome start and end position with the following format: “chri:start-end”
@@ -119,7 +128,17 @@ total_reads_matrix <-
 ```
 
 
-Compute the DNA methylation ratio.
+<b> Compute the DNA methylation ratio. </b> <br>
+First, explore the methReads and totalReads .csv files. When using R, you can import the
+methReads and totalReads .csv files (clue: it will be much faster if you use the function fread
+from the “data.table” R-package). The data contains 4 columns storing characters:
+“seqnames”, “start”, “end” and “cluster.id”. These will be a nuisance for any downstream
+analysis. Create a identifier vector combining chromosome start and end position with the
+following format: “chri:start-end”. Then, remove the 4 character columns from the imported
+matrices, convert to numeric matrix data type and use the created ID vector as row.names.
+Perform this processing step for both methReads and totalReads. Finally, compute DNA
+methylation ratio. 
+
 ```{r}
 meth_ratio = round((meth_reads_matrix / total_reads_matrix), 3)
 
@@ -164,7 +183,8 @@ the methylation ratio matrix has 9367080 N/A values. As you can see, these don't
 Q4) Visualize the methylation density distribution for each sample in a single plot. You may  employ the convenient densityPlot function from the minfi R-package. Attach the resulting figure and comment about it.
 </b>
 <br>
-<i>Answer</i>: The density plot shows the distribution of the methylation beta values for each sample (in this case). These values are, as expected, centered around 0 and 1, where 0 indicates unmethylated sites and 1 indicates methylates sites. This is an important step in the QC as a distribution that deviates from this distribution may be caused by poor quality of the data or other errors. There appears to be one same with a different beta value distribution. We should investigate whether this is because of biological or technical variation. 
+<i>Answer</i>: The density plot shows the distribution of the methylation beta values for each sample (in this case). These values are, as expected, centered around 0 and 1, where 0 indicates unmethylated sites and 1 indicates methylates sites. This is an important step in the QC as a distribution that deviates from this distribution may be caused by poor quality of the data or other errors. There appears to be one sample with a different beta value distribution. We should investigate whether this is because of biological or technical variation. <br>
+(The paper mentions that Sample 17_1 was sequenced less deeply and did not appear to be an outlier)
 
 ```{r}
 densityPlot(meth_ratio, main = "Density methylation Beta values")
@@ -174,9 +194,92 @@ densityPlot(meth_ratio, main = "Density methylation Beta values")
 <b>
 Q5) Perform a multi-dimensional scaling (MDS) plot on the top 1000 most variable positions. You may employ the mdsPlot function from the minfi R-package. Employ the rainbow palette to colour each individual differently, use the filled circle point shape and display the legend in three columns. Describe briefly the basis of an MDS plot, attach and interpret the obtained visualization. 
 </b>
+<i>Extra points: label each axis with the percentage of variance explained. </i> <br>
+<br>
+<i>Answer</i>: An MDS plot is a 2-d visualization of distances between samples. It uses Multidimensional Scaling, which is a form of dimensionality reduction. The minfi MDSPlot function used Euclidean distance to determine the distance between samples based on the most variable CpG positions.
+<br>
+Each dot in the plot represents one sample, and each individual is indicated by color. There is one outlier for one of the samples from RRBS_17, which could be caused by biological or technical differences. 
+(Again: The paper mentions that Sample 17_1 was sequenced less deeply and did not appear to be an outlier)
+
+```{r}
+samp_names <- colnames(meth_ratio)
+# Extract the individual 
+individuals <- sub("_(\\d+)$", "", samp_names)
+
+
+mdsPlot(meth_ratio, sampGroups = individuals, pch = 19, pal = rainbow(length(unique((individuals)))),
+        legendPos = "bottomleft", legendNCol = 3)
+
+```
+<br>
+
+<b>
+Q6) Extract all positions included in the region chr12:739000-740500, that corresponds to a strong methylation quantitative trait locus (meQTL). How many positions are included in this region? Visualize the data in these positions via heatmap. Use the heatmap.2 function from the R-package gplots. Use ColSideColors argument to add a colour guide in which each individual has a different colour. Describe and interpret the output.
+</b>
+<br>
+<i>Answer</i>: There are 20 positions included in this region. Some samples have high missingness in this region and most sites are unmethylated. Most individuals or timepoints are not closely clustered in the dendogram.
+The fact that there is little variation in this region could indicate multiple things. For instance that this is a stable region, or that the methylation state is tissue specific (in this case spermatozoa). 
+
+
+```{r, out.width="90%"}
+meQTL_CpGs <- meth_reads %>%
+  filter(seqnames == "chr12" & start >= 739000 & end <= 740500) %>%
+  mutate(id = paste0(seqnames,":",start,"-",end)) %>%
+  select(id)
+
+meth_ratio_meQTL_CpGs <- 
+  subset(meth_ratio, rownames(meth_ratio) %in% meQTL_CpGs$id)
+
+#create colors
+individuals <- factor(individuals, levels = unique(individuals))
+palette <- colorRampPalette(my_palette)(12)
+
+
+heatmap.2(meth_ratio_meQTL_CpGs, ColSideColors = palette[individuals])
+
+```
+
+<br>
+
+Now, import predictedMeth .csv file in R (again with the “data.table” R-package) and perform the same processing as for methReads and totalReads .csv files (e.g. remove character columns and add as row.names and identifier to each position as in “chri:start-end”. You may round the matrix to 3 decimals to reduce storage resources. 
+
+<br>
+
+<b>
+Q7) Extract the methylation values for the row corresponding to “chr6:209819-209819” from “predictedMeth.csv”. Plot this row vector against the methylation ratio we manually computed in the prior section for this same row. Does anything strike from the visualization? Explain why this is so. How does the densityPlot look for “predictedMeth.csv”? Use again the function densityPlot from the minfi R-package. Comment on the output plot.
+</b>
+<br>
+<i>Answer</i>: waarden met 0 calculated worden slecht voorspeld
 
 
 ```{r}
-mdsPlot(meth_ratio)
+# predicted meth al eerder ingelezen
+#wel nog aanpassen rownames
+predicted_meth_matrix <-
+  predicted_meth %>% mutate(
+  id = paste0(seqnames,":",start,"-",end)) %>%
+  column_to_rownames("id") %>%
+  select(-c(seqnames,cluster.id, start, end)) %>%
+  as.matrix()
+
+predicted_meth_chr6_209819 <- 
+  subset(predicted_meth_matrix, rownames(predicted_meth_matrix) == "chr6:209819-209819")
+meth_ratio_chr6_209819 <-
+  subset(meth_ratio, rownames(meth_ratio) == "chr6:209819-209819")
+
+#check if order is the same
+#colnames(predicted_meth_chr6_209819) == colnames(meth_ratio_chr6_209819)
+
+ggplot() +
+  geom_point(aes(x = predicted_meth_chr6_209819[1,], y = meth_ratio_chr6_209819[1,])) +
+  xlab("Predicted Methlation") +
+  ylab("Calculated Methylation ratio") +
+  ggtitle("Predicted vs calculated methylation ratio") +
+  theme_classic()
+meth_ratio_chr6_209819
+
+```
+```{r}
+densityPlot(predicted_meth_matrix)
 ```
 

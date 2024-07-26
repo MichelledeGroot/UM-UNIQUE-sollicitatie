@@ -1,0 +1,6 @@
+
+# R related files
+*.Rproj*
+
+# data files
+data
