@@ -235,7 +235,7 @@ individuals <- factor(individuals, levels = unique(individuals))
 palette <- colorRampPalette(my_palette)(12)
 
 
-heatmap.2(meth_ratio_meQTL_CpGs, ColSideColors = palette[individuals])
+heatmap.2(meth_ratio_meQTL_CpGs, ColSideColors = palette[individuals], margins=c(8,12))
 
 ```
 
@@ -249,7 +249,8 @@ Now, import predictedMeth .csv file in R (again with the “data.table” R-pack
 Q7) Extract the methylation values for the row corresponding to “chr6:209819-209819” from “predictedMeth.csv”. Plot this row vector against the methylation ratio we manually computed in the prior section for this same row. Does anything strike from the visualization? Explain why this is so. How does the densityPlot look for “predictedMeth.csv”? Use again the function densityPlot from the minfi R-package. Comment on the output plot.
 </b>
 <br>
-<i>Answer</i>: waarden met 0 calculated worden slecht voorspeld
+<i>Answer</i>: When comparing the predicted and calculated methylation scores, we would expect a linear correlation. For the non-zero calculated methylation scores, this looks to be the case (with small variations). We also see samples where the calculated methylation ratio is zero, while the predicted methylation score is higher (but still in the unmethylated range). This could indicate measurement errors or low coverage in sequencing (for this position, coverage is between 3-61). A more likely explanation is that, where the calculated beta ratio returns 0 for no methylated reads, the prediction method is less likely to output exact zero values. Many predictive models, especially those based on regression techniques, predict values within a range but rarely exactly at zero.
+The density plot shows a clear bimodal distribution with two prominent peaks. One peak is near zero, indicating CpG sites that have very low or no methylation. The second peak is close to one, indicating CpG sites that are fully methylated. While the density around 0 and 1 appears to be similar to the calculated beta values, there are no small peaks in between. This suggests that the calculated values capture more variability in methylation states. The prediction model might be over-smoothing or not capturing the full range of intermediate methylation levels accurately.
 
 
 ```{r}
@@ -276,7 +277,6 @@ ggplot() +
   ylab("Calculated Methylation ratio") +
   ggtitle("Predicted vs calculated methylation ratio") +
   theme_classic()
-meth_ratio_chr6_209819
 
 ```
 ```{r}
